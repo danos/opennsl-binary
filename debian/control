@@ -1,0 +1,9 @@
+Source: opennsl-binary
+Section: devel
+Priority: optional
+Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
+Build-Depends: libopennsl-dev, libopennsl1
+Standards-Version: 4.2.1
+
+Package: dummy
+Architecture: any

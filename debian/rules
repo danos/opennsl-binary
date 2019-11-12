@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+SHELL := bash -e
+
+PACKAGES := $(shell grep Build-Depends debian/control | sed -e "s/Build-Depends: //" -e "s/,//g")
+
+clean:
+	rm -f debian/files
+	for p in ${PACKAGES}; do \
+		rm -rf debian/$${p}; \
+	done
+	sed -i '/Package:/,/`tail -n1 debian/control`/d' debian/control
+	echo 'Package: dummy' >> debian/control
+	echo 'Architecture: any' >> debian/control
+
+build:
+	sed -i '/Package: dummy/d' debian/control
+	sed -i '/Architecture: any/d' debian/control
+
+binary:
+	for p in ${PACKAGES}; do \
+		PACKAGE_VERSION=$$(dpkg-query --showformat='$${Version}' --show $${p}); \
+		PACKAGE_SECTION=$$(dpkg-query --showformat='$${Section}' --show $${p}); \
+		PACKAGE_PRIORITY=$$(dpkg-query --showformat='$${Priority}' --show $${p}); \
+		PACKAGE_ARCH=$$(dpkg-query --showformat='$${Architecture}' --show $${p}); \
+		echo "$${p}_$${PACKAGE_VERSION}_$${PACKAGE_ARCH}.deb $${PACKAGE_SECTION} $${PACKAGE_PRIORITY}" >> debian/files; \
+		echo "Package: $${p}" >> debian/control; \
+		echo "Architecture: $${PACKAGE_ARCH}" >> debian/control; \
+		echo "Section: $${PACKAGE_SECTION}" >> debian/control; \
+		echo "Priority: $${PACKAGE_PRIORITY}" >> debian/control; \
+		echo "" >> debian/control; \
+		mkdir -p debian/$${p}/DEBIAN; \
+		dpkg --status $${p} | grep -v "$Status:" > debian/$${p}/DEBIAN/control; \
+		for f in $$(dpkg-query --control-list $${p}); do \
+			dpkg-query --control-show $${p} $${f} > debian/$${p}/DEBIAN/$${f}; \
+		done; \
+		for f in postinst preinst postrm prerm maintscript; do \
+			if [ -f debian/$${p}/DEBIAN/$${f} ]; then \
+				chmod 755 debian/$${p}/DEBIAN/$${f}; \
+			fi; \
+		done; \
+		for f in $$(dpkg-query -L $${p}); do \
+			if [ ! -d $${f} ] && [ -r $${f} ]; then \
+				mkdir -p debian/$${p}/$$(dirname $${f}); \
+				cp -a $$f debian/$${p}/$$(dirname $${f})/; \
+				if [[ $$f =~ ^/etc/ ]]; then \
+					echo $$f >> debian/$${p}/DEBIAN/conffiles; \
+				fi; \
+			fi; \
+		done; \
+		dpkg-deb --build debian/$${p} ../$${p}_$${PACKAGE_VERSION}_$${PACKAGE_ARCH}.deb; \
+	done
+
+binary-indep:
+build-indep:
+binary-arch:
+build-arch:
